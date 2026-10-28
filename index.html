@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>ระบบจองห้องประชุมองค์กร (Enterprise Meeting Room Reservation)</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    /* Custom Corporate Accents */
+    :root {
+      --primary-blue: #2563EB;
+      --primary-dark: #0F172A;
+    }
+    .badge-available { background-color: rgba(22, 163, 74, 0.15); color: #16A34A; border: 1px solid rgba(22, 163, 74, 0.3); }
+    .badge-occupied { background-color: rgba(220, 38, 38, 0.15); color: #DC2626; border: 1px solid rgba(220, 38, 38, 0.3); }
+    .badge-reserved { background-color: rgba(245, 158, 11, 0.15); color: #D97706; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .badge-maintenance { background-color: rgba(100, 116, 139, 0.15); color: #64748B; border: 1px solid rgba(100, 116, 139, 0.3); }
+  </style>
+</head>
+<body class="bg-[var(--background)] text-[var(--foreground)] antialiased min-h-screen flex flex-col font-sans">
+
+  <!-- ================= TOP HEADER ================= -->
+  <header class="bg-[var(--card)] border-b border-[var(--border)] sticky top-0 z-30 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      
+      <!-- Logo & Brand -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow font-bold text-lg">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+        </div>
+        <div>
+          <span class="font-extrabold text-base tracking-tight text-[var(--foreground)] block leading-none">ROOMRESERVE</span>
+          <span class="text-xs text-[var(--muted-foreground)] font-medium">ระบบจองห้องประชุมองค์กร</span>
+        </div>
+      </div>
+
+      <!-- Quick Room Availability Pill -->
+      <div class="hidden md:flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-xs font-semibold text-emerald-600">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span id="header-avail-count">ห้องว่างพร้อมใช้ 5 / 6 ห้อง</span>
+      </div>
+
+      <!-- Right Controls: Role Switcher & Notifications -->
+      <div class="flex items-center gap-3">
+        <!-- Role Switcher -->
+        <div class="flex items-center bg-[var(--background)] p-1 rounded-lg border border-[var(--border)] text-xs font-medium">
+          <span class="text-[var(--muted-foreground)] px-2">สิทธิ์:</span>
+          <button onclick="switchRole('admin')" id="role-btn-admin" class="px-2.5 py-1 rounded bg-blue-600 text-white font-bold transition">Admin</button>
+          <button onclick="switchRole('manager')" id="role-btn-manager" class="px-2.5 py-1 rounded text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition">Manager</button>
+          <button onclick="switchRole('user')" id="role-btn-user" class="px-2.5 py-1 rounded text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition">User</button>
+        </div>
+
+        <!-- Notification Bell -->
+        <div class="relative">
+          <button onclick="toggleNotifDropdown()" class="p-2 rounded-lg bg-[var(--background)] border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--card)] relative">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+            <span id="notif-badge" class="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white rounded-full text-xs flex items-center justify-center font-bold">2</span>
+          </button>
+          <div id="notif-dropdown" class="hidden absolute right-0 mt-2 w-80 bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-xl p-3 z-50 text-xs space-y-2">
+            <div class="flex items-center justify-between pb-2 border-b border-[var(--border)]">
+              <span class="font-bold text-[var(--foreground)]">การแจ้งเตือน</span>
+              <button onclick="clearNotifs()" class="text-blue-600 hover:underline">อ่านทั้งหมด</button>
+            </div>
+            <div id="notif-items" class="space-y-2 max-h-60 overflow-y-auto"></div>
+          </div>
+        </div>
+
+        <!-- Quick Book Button -->
+        <button onclick="openBookingModal()" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow transition flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+          จองห้องประชุม
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ================= NAVIGATION BAR ================= -->
+  <nav class="bg-[var(--card)] border-b border-[var(--border)]">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-1 sm:space-x-4 overflow-x-auto py-2">
+      <button onclick="switchTab('dashboard')" id="tab-dashboard" class="tab-btn px-3 py-2 rounded-lg text-xs font-bold bg-blue-600 text-white shadow-sm transition">📊 Dashboard</button>
+      <button onclick="switchTab('rooms')" id="tab-rooms" class="tab-btn px-3 py-2 rounded-lg text-xs font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--background)] transition">🚪 ห้องประชุม (Rooms)</button>
+      <button onclick="switchTab('calendar')" id="tab-calendar" class="tab-btn px-3 py-2 rounded-lg text-xs font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--background)] transition">📅 ปฏิทิน (Calendar)</button>
+      <button onclick="switchTab('my-bookings')" id="tab-my-bookings" class="tab-btn px-3 py-2 rounded-lg text-xs font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--background)] transition">📝 การจองของฉัน</button>
+      <button onclick="switchTab('all-bookings')" id="tab-all-bookings" class="tab-btn px-3 py-2 rounded-lg text-xs font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--background)] transition">📑 อนุมัติการจอง</button>
+      <button onclick="switchTab('reports')" id="tab-reports" class="tab-btn px-3 py-2 rounded-lg text-xs font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--background)] transition">📈 รายงานและสถิติ</button>
+      <button onclick="switchTab('users')" id="tab-users" class="tab-btn px-3 py-2 rounded-lg text-xs font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--background)] transition">👥 จัดการผู้ใช้</button>
+      <button onclick="switchTab('logs')" id="tab-logs" class="tab-btn px-3 py-2 rounded-lg text-xs font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--background)] transition">🛡️ Audit Logs</button>
+    </div>
+  </nav>
+
+  <!-- ================= MAIN VIEW CONTENT ================= -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+    <!-- 1. DASHBOARD VIEW -->
+    <div id="view-dashboard" class="space-y-6">
+      <!-- KPI Row -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-[var(--card)] p-4 rounded-xl border border-[var(--border)] shadow-sm">
+          <p class="text-xs font-bold text-[var(--muted-foreground)] uppercase">ห้องประชุมทั้งหมด</p>
+          <h3 class="text-2xl font-black text-[var(--foreground)] mt-1">6 ห้อง</h3>
+          <p class="text-xs text-[var(--muted-foreground)] mt-1">3 อาคาร รองรับ 4-50 ที่นั่ง</p>
+        </div>
+        <div class="bg-[var(--card)] p-4 rounded-xl border border-[var(--border)] shadow-sm">
+          <p class="text-xs font-bold text-emerald-600 uppercase">ห้องที่ว่างขณะนี้</p>
+          <h3 class="text-2xl font-black text-emerald-600 mt-1" id="dash-avail">5 ห้อง</h3>
+          <p class="text-xs text-emerald-600 mt-1">พร้อมจองใช้งานทันที</p>
+        </div>
+        <div class="bg-[var(--card)] p-4 rounded-xl border border-[var(--border)] shadow-sm">
+          <p class="text-xs font-bold text-rose-600 uppercase">กำลังใช้งาน</p>
+          <h3 class="text-2xl font-black text-rose-600 mt-1" id="dash-occupied">0 ห้อง</h3>
+          <p class="text-xs text-[var(--muted-foreground)] mt-1">มีการประชุมในขณะนี้</p>
+        </div>
+        <div class="bg-[var(--card)] p-4 rounded-xl border border-[var(--border)] shadow-sm">
+          <p class="text-xs font-bold text-blue-600 uppercase">การจองวันนี้</p>
+          <h3 class="text-2xl font-black text-blue-600 mt-1" id="dash-today">3 รายการ</h3>
+          <p class="text-xs text-amber-600 mt-1 font-semibold" id="dash-pending">1 รายการรออนุมัติ</p>
+        </div>
+      </div>
+
+      <!-- Charts Row -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 bg-[var(--card)] p-5 rounded-xl border border-[var(--border)] shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <h4 class="font-bold text-sm text-[var(--foreground)]">สถิติการจองรายสัปดาห์ (Daily Bookings Trend)</h4>
+            <span class="text-xs text-[var(--muted-foreground)]">จำนวนชั่วโมงที่ใช้งาน</span>
+          </div>
+          <!-- Bar Graph SVG -->
+          <div class="h-48 flex items-end justify-between gap-4 pt-6 pb-2 border-b border-[var(--border)]">
+            <div class="flex-1 flex flex-col items-center gap-1">
+              <div class="w-full bg-blue-500 rounded-t" style="height: 45%;"></div>
+              <span class="text-xs text-[var(--muted-foreground)]">จันทร์</span>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-1">
+              <div class="w-full bg-blue-600 rounded-t" style="height: 75%;"></div>
+              <span class="text-xs text-[var(--muted-foreground)]">อังคาร</span>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-1">
+              <div class="w-full bg-blue-700 rounded-t" style="height: 60%;"></div>
+              <span class="text-xs text-[var(--muted-foreground)]">พุธ</span>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-1">
+              <div class="w-full bg-blue-600 rounded-t" style="height: 90%;"></div>
+              <span class="text-xs text-[var(--muted-foreground)]">พฤหัส</span>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-1">
+              <div class="w-full bg-blue-500 rounded-t" style="height: 50%;"></div>
+              <span class="text-xs text-[var(--muted-foreground)]">ศุกร์</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Room Utilization -->
+        <div class="bg-[var(--card)] p-5 rounded-xl border border-[var(--border)] shadow-sm space-y-4">
+          <h4 class="font-bold text-sm text-[var(--foreground)]">อัตราการใช้งานห้อง (Utilization)</h4>
+          <div class="space-y-3" id="utilization-list"></div>
+        </div>
+      </div>
+
+      <!-- Upcoming Meetings Table -->
+      <div class="bg-[var(--card)] rounded-xl border border-[var(--border)] shadow-sm p-5 space-y-3">
+        <div class="flex items-center justify-between">
+          <h4 class="font-bold text-sm text-[var(--foreground)]">การประชุมประจำวัน (Today's Meetings)</h4>
+          <button onclick="switchTab('calendar')" class="text-xs text-blue-600 font-bold hover:underline">ดูปฏิทิน &rarr;</button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-[var(--background)] border-b border-[var(--border)] text-[var(--muted-foreground)] font-bold">
+              <tr>
+                <th class="py-2.5 px-3">ห้องประชุม</th>
+                <th class="py-2.5 px-3">หัวข้อการประชุม</th>
+                <th class="py-2.5 px-3">ผู้จัด</th>
+                <th class="py-2.5 px-3">เวลา</th>
+                <th class="py-2.5 px-3 text-right">สถานะ</th>
+              </tr>
+            </thead>
+            <tbody id="today-meetings-tbody" class="divide-y divide-[var(--border)]"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. MEETING ROOMS VIEW -->
+    <div id="view-rooms" class="hidden space-y-6">
+      <!-- Filter Bar -->
+      <div class="bg-[var(--card)] p-4 rounded-xl border border-[var(--border)] shadow-sm flex flex-wrap items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-3 flex-1">
+          <input type="text" id="room-filter-search" oninput="filterRooms()" placeholder="ค้นหาชื่อห้อง, อาคาร..." class="px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-xs w-48 focus:outline-none focus:ring-1 focus:ring-blue-500">
+          <select id="room-filter-status" onchange="filterRooms()" class="px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-xs focus:outline-none">
+            <option value="">ทุกสถานะ (All Status)</option>
+            <option value="available">🟢 ว่าง (Available)</option>
+            <option value="occupied">🔴 กำลังใช้งาน (Occupied)</option>
+            <option value="reserved">🟡 จองแล้ว (Reserved)</option>
+            <option value="maintenance">⚫ ปิดปรับปรุง (Maintenance)</option>
+          </select>
+          <select id="room-filter-capacity" onchange="filterRooms()" class="px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-xs focus:outline-none">
+            <option value="0">ทุกขนาดความจุ</option>
+            <option value="4">อย่างน้อย 4 คน</option>
+            <option value="10">อย่างน้อย 10 คน</option>
+            <option value="16">อย่างน้อย 16 คน</option>
+            <option value="30">อย่างน้อย 30 คน</option>
+          </select>
+        </div>
+        <button onclick="openAddRoomModal()" class="admin-only px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition">
+          + เพิ่มห้องประชุมใหม่
+        </button>
+      </div>
+
+      <!-- Rooms Grid -->
+      <div id="rooms-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+    </div>
+
+    <!-- 3. CALENDAR VIEW -->
+    <div id="view-calendar" class="hidden space-y-6">
+      <div class="bg-[var(--card)] p-5 rounded-xl border border-[var(--border)] shadow-sm space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[var(--border)]">
+          <div>
+            <h3 class="font-bold text-base text-[var(--foreground)]" id="calendar-month-title">ตุลาคม 2026</h3>
+            <p class="text-xs text-[var(--muted-foreground)]">คลิกที่ช่องเวลาเพื่อจองห้อง หรือคลิกที่รายการเพื่อดูรายละเอียด</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="changeCalMonth(-1)" class="px-2.5 py-1 bg-[var(--background)] border border-[var(--border)] rounded text-xs">&larr; ก่อนหน้า</button>
+            <button onclick="changeCalMonth(1)" class="px-2.5 py-1 bg-[var(--background)] border border-[var(--border)] rounded text-xs">ถัดไป &rarr;</button>
+          </div>
+        </div>
+
+        <!-- Calendar Grid -->
+        <div class="grid grid-cols-7 gap-2 text-center text-xs font-bold text-[var(--muted-foreground)] mb-2">
+          <div>อา.</div><div>จ.</div><div>อ.</div><div>พ.</div><div>พฤ.</div><div>ศ.</div><div>ส.</div>
+        </div>
+        <div id="calendar-days-grid" class="grid grid-cols-7 gap-2"></div>
+      </div>
+    </div>
+
+    <!-- 4. MY BOOKINGS VIEW -->
+    <div id="view-my-bookings" class="hidden space-y-6">
+      <div class="bg-[var(--card)] rounded-xl border border-[var(--border)] shadow-sm p-5 space-y-4">
+        <h3 class="font-bold text-base text-[var(--foreground)]">รายการจองห้องประชุมของฉัน</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-[var(--background)] border-b border-[var(--border)] text-[var(--muted-foreground)] font-bold">
+              <tr>
+                <th class="py-2.5 px-3">รหัสการจอง</th>
+                <th class="py-2.5 px-3">ห้องประชุม</th>
+                <th class="py-2.5 px-3">หัวข้อการประชุม</th>
+                <th class="py-2.5 px-3">วันและเวลา</th>
+                <th class="py-2.5 px-3 text-center">สถานะ</th>
+                <th class="py-2.5 px-3 text-right">การจัดการ</th>
+              </tr>
+            </thead>
+            <tbody id="my-bookings-tbody" class="divide-y divide-[var(--border)]"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. ALL BOOKINGS / APPROVALS VIEW -->
+    <div id="view-all-bookings" class="hidden space-y-6">
+      <div class="bg-[var(--card)] rounded-xl border border-[var(--border)] shadow-sm p-5 space-y-4">
+        <h3 class="font-bold text-base text-[var(--foreground)]">รายการขออนุมัติการจองทั้งหมด (Staff & Admin)</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-[var(--background)] border-b border-[var(--border)] text-[var(--muted-foreground)] font-bold">
+              <tr>
+                <th class="py-2.5 px-3">รหัสการจอง</th>
+                <th class="py-2.5 px-3">ห้องประชุม</th>
+                <th class="py-2.5 px-3">หัวข้อการประชุม</th>
+                <th class="py-2.5 px-3">ผู้ขอจอง</th>
+                <th class="py-2.5 px-3">วันและเวลา</th>
+                <th class="py-2.5 px-3 text-center">สถานะ</th>
+                <th class="py-2.5 px-3 text-right">พิจารณา</th>
+              </tr>
+            </thead>
+            <tbody id="all-bookings-tbody" class="divide-y divide-[var(--border)]"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. REPORTS VIEW -->
+    <div id="view-reports" class="hidden space-y-6">
+      <div class="bg-[var(--card)] p-5 rounded-xl border border-[var(--border)] shadow-sm flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h3 class="font-bold text-base text-[var(--foreground)]">รายงานสรุปการใช้ห้องประชุม</h3>
+          <p class="text-xs text-[var(--muted-foreground)]">สรุปชั่วโมง อัตราการใช้งาน และประวัติย้อนหลัง</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="exportCSV()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold transition flex items-center gap-1">
+            📥 ดาวน์โหลด CSV
+          </button>
+        </div>
+      </div>
+
+      <div class="bg-[var(--card)] rounded-xl border border-[var(--border)] shadow-sm overflow-hidden">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-[var(--background)] border-b border-[var(--border)] text-[var(--muted-foreground)] font-bold">
+            <tr>
+              <th class="py-3 px-4">รหัสห้อง</th>
+              <th class="py-3 px-4">ชื่อห้องประชุม</th>
+              <th class="py-3 px-4 text-center">ความจุ (คน)</th>
+              <th class="py-3 px-4 text-center">จำนวนการจอง (ครั้ง)</th>
+              <th class="py-3 px-4 text-center">ชั่วโมงรวม</th>
+              <th class="py-3 px-4 text-right">อัตราการใช้งาน</th>
+            </tr>
+          </thead>
+          <tbody id="reports-tbody" class="divide-y divide-[var(--border)]"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 7. USERS VIEW -->
+    <div id="view-users" class="hidden space-y-6">
+      <div class="bg-[var(--card)] p-5 rounded-xl border border-[var(--border)] shadow-sm flex items-center justify-between">
+        <div>
+          <h3 class="font-bold text-base text-[var(--foreground)]">รายชื่อผู้ใช้งานและสิทธิ์ (User Management)</h3>
+          <p class="text-xs text-[var(--muted-foreground)]">จัดการบทบาท Role และสถานะเปิด/ปิดการใช้งาน</p>
+        </div>
+      </div>
+      <div class="bg-[var(--card)] rounded-xl border border-[var(--border)] shadow-sm overflow-hidden">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-[var(--background)] border-b border-[var(--border)] text-[var(--muted-foreground)] font-bold">
+            <tr>
+              <th class="py-3 px-4">ชื่อ-นามสกุล</th>
+              <th class="py-3 px-4">อีเมล</th>
+              <th class="py-3 px-4 text-center">สิทธิ์ (Role)</th>
+              <th class="py-3 px-4">แผนก</th>
+              <th class="py-3 px-4 text-center">สถานะ</th>
+              <th class="py-3 px-4 text-right">การจัดการ</th>
+            </tr>
+          </thead>
+          <tbody id="users-tbody" class="divide-y divide-[var(--border)]"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 8. AUDIT LOGS VIEW -->
+    <div id="view-logs" class="hidden space-y-6">
+      <div class="bg-[var(--card)] p-5 rounded-xl border border-[var(--border)] shadow-sm">
+        <h3 class="font-bold text-base text-[var(--foreground)]">ประวัติกิจกรรมระบบ (Audit & Activity Logs)</h3>
+        <p class="text-xs text-[var(--muted-foreground)]">บันทึกทุกการกระทำเพื่อความโปร่งใสและความปลอดภัย</p>
+      </div>
+      <div class="bg-[var(--card)] rounded-xl border border-[var(--border)] shadow-sm overflow-hidden font-mono text-xs">
+        <table class="w-full text-left">
+          <thead class="bg-[var(--background)] border-b border-[var(--border)] text-[var(--muted-foreground)] font-bold">
+            <tr>
+              <th class="py-3 px-4">วันและเวลา</th>
+              <th class="py-3 px-4">ผู้กระทำ</th>
+              <th class="py-3 px-4">Action</th>
+              <th class="py-3 px-4">รายละเอียด</th>
+              <th class="py-3 px-4 text-right">IP Address</th>
+            </tr>
+          </thead>
+          <tbody id="logs-tbody" class="divide-y divide-[var(--border)]"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ================= MODALS ================= -->
+
+  <!-- SMART BOOKING MODAL -->
+  <div id="booking-modal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-[var(--card)] text-[var(--foreground)] border border-[var(--border)] rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-[var(--border)]">
+        <h3 class="font-bold text-base">จองห้องประชุม (Meeting Booking)</h3>
+        <button onclick="closeBookingModal()" class="text-slate-400 hover:text-white p-1 text-lg">&times;</button>
+      </div>
+
+      <!-- Live Conflict Warning -->
+      <div id="conflict-banner" class="hidden p-3 rounded-lg border text-xs space-y-2"></div>
+
+      <form id="booking-form" onsubmit="handleBookingSubmit(event)" class="space-y-3 text-xs">
+        <div>
+          <label class="block font-bold mb-1">เลือกห้องประชุม *</label>
+          <select id="book-room-id" onchange="runConflictCheck()" class="w-full px-3 py-2 rounded border border-[var(--border)] bg-[var(--background)] focus:ring-1 focus:ring-blue-500"></select>
+        </div>
+        <div>
+          <label class="block font-bold mb-1">หัวข้อการประชุม *</label>
+          <input type="text" id="book-title" required placeholder="เช่น ประชุมวางแผนประจำไตรมาส 4" class="w-full px-3 py-2 rounded border border-[var(--border)] bg-[var(--background)] focus:ring-1 focus:ring-blue-500">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold mb-1">วันที่ *</label>
+            <input type="date" id="book-date" onchange="runConflictCheck()" class="w-full px-3 py-2 rounded border border-[var(--border)] bg-[var(--background)]">
+          </div>
+          <div>
+            <label class="block font-bold mb-1">จำนวนคน *</label>
+            <input type="number" id="book-attendees" min="1" value="6" oninput="runConflictCheck()" class="w-full px-3 py-2 rounded border border-[var(--border)] bg-[var(--background)]">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold mb-1">เวลาเริ่ม *</label>
+            <input type="time" id="book-start" value="10:00" onchange="runConflictCheck()" class="w-full px-3 py-2 rounded border border-[var(--border)] bg-[var(--background)]">
+          </div>
+          <div>
+            <label class="block font-bold mb-1">เวลาสิ้นสุด *</label>
+            <input type="time" id="book-end" value="11:30" onchange="runConflictCheck()" class="w-full px-3 py-2 rounded border border-[var(--border)] bg-[var(--background)]">
+          </div>
+        </div>
+        <div>
+          <label class="block font-bold mb-1">ผู้จัดประชุม *</label>
+          <input type="text" id="book-organizer" required value="สมชาย พัฒนาไทย" class="w-full px-3 py-2 rounded border border-[var(--border)] bg-[var(--background)]">
+        </div>
+        <div>
+          <label class="block font-bold mb-1">รายละเอียดเพิ่มเติม</label>
+          <textarea id="book-desc" rows="2" placeholder="วาระหรือหมายเหตุ..." class="w-full px-3 py-2 rounded border border-[var(--border)] bg-[var(--background)]"></textarea>
+        </div>
+
+        <div class="pt-3 border-t border-[var(--border)] flex justify-end gap-2">
+          <button type="button" onclick="closeBookingModal()" class="px-4 py-2 rounded bg-[var(--background)] border border-[var(--border)] font-semibold">ยกเลิก</button>
+          <button type="submit" id="book-submit-btn" class="px-5 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white font-bold transition">ยืนยันการจอง</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- TOAST CONTAINER -->
+  <div id="toast" class="hidden fixed bottom-4 right-4 z-50 bg-[var(--card)] border border-[var(--border)] text-[var(--foreground)] p-3.5 rounded-xl shadow-2xl text-xs flex items-center gap-3 transition"></div>
+
+  <!-- ================= JAVASCRIPT STATE & LOGIC ================= -->
+  <script>
+    // State Store
+    const state = {
+      role: 'admin', // admin | manager | user
+      currentTab: 'dashboard',
+      rooms: [
+        { id: 1, code: 'RM-101', name: 'Grand Horizon Boardroom', building: 'อาคาร A', floor: 'ชั้น 10', capacity: 30, status: 'available', image: 'https://images.unsplash.com/photo-1517502884422-41eaead166d4?w=600', equipment: ['Video Conf', '4K Projector', 'Wireless Mic'] },
+        { id: 2, code: 'RM-201', name: 'Agile Innovation Lab', building: 'อาคาร B', floor: 'ชั้น 3', capacity: 16, status: 'available', image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=600', equipment: ['Smart TV 75"', 'Whiteboard', 'Wi-Fi 6'] },
+        { id: 3, code: 'RM-301', name: 'Executive Suite Alpha', building: 'อาคาร A', floor: 'ชั้น 5', capacity: 10, status: 'available', image: 'https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=600', equipment: ['Video Conf', 'Soundbar'] },
+        { id: 4, code: 'RM-401', name: 'Focus Room Blue', building: 'อาคาร B', floor: 'ชั้น 2', capacity: 6, status: 'available', image: 'https://images.unsplash.com/photo-1577495508048-b635879837f1?w=600', equipment: ['Display TV', 'Whiteboard'] },
+        { id: 5, code: 'RM-501', name: 'Creative Pod Green', building: 'อาคาร C', floor: 'ชั้น 1', capacity: 4, status: 'available', image: 'https://images.unsplash.com/photo-1505409859467-3a796fd5798e?w=600', equipment: ['Whiteboard', 'Wi-Fi 6'] },
+        { id: 6, code: 'RM-601', name: 'Workshop & Seminar Hall', building: 'อาคาร A', floor: 'ชั้น 1', capacity: 50, status: 'maintenance', image: 'https://images.unsplash.com/photo-1431540015161-0bf868a2d407?w=600', equipment: ['Dual Projector', 'Full PA System'] }
+      ],
+      bookings: [
+        { id: 1, code: 'BK-20261028-001', roomId: 1, title: 'Q4 Strategic Planning & Executive Alignment', organizer: 'ณัฐพล บริหารกิจ', date: '2026-10-28', start: '09:00', end: '11:30', attendees: 20, status: 'approved' },
+        { id: 2, code: 'BK-20261028-002', roomId: 2, title: 'Sprint Review & Tech Demo (System v2.0)', organizer: 'สมชาย พัฒนาไทย', date: '2026-10-28', start: '14:00', end: '16:00', attendees: 12, status: 'pending' },
+        { id: 3, code: 'BK-20261029-003', roomId: 3, title: 'Global Marketing Campaign Launch 2027', organizer: 'ศิริพร วงศ์สว่าง', date: '2026-10-29', start: '10:00', end: '12:00', attendees: 8, status: 'approved' },
+        { id: 4, code: 'BK-20261027-004', roomId: 4, title: 'Interview: Senior Backend Engineer Candidate', organizer: 'วิภาดา สิทธิการ', date: '2026-10-27', start: '13:30', end: '15:00', attendees: 4, status: 'completed' }
+      ],
+      users: [
+        { id: 1, name: 'ณัฐพล บริหารกิจ', email: 'admin@company.com', role: 'admin', dept: 'IT & Engineering', status: 'active' },
+        { id: 2, name: 'วิภาดา สิทธิการ', email: 'manager@company.com', role: 'manager', dept: 'Human Resources', status: 'active' },
+        { id: 3, name: 'สมชาย พัฒนาไทย', email: 'user@company.com', role: 'user', dept: 'IT & Engineering', status: 'active' },
+        { id: 4, name: 'ศิริพร วงศ์สว่าง', email: 'sarah@company.com', role: 'user', dept: 'Marketing & Sales', status: 'active' }
+      ],
+      logs: [
+        { time: '28 ต.ค. 2569 09:00', user: 'ณัฐพล บริหารกิจ', action: 'CREATE_BOOKING', details: 'สร้างการจอง BK-20261028-001 ห้อง Grand Horizon', ip: '127.0.0.1' },
+        { time: '28 ต.ค. 2569 08:45', user: 'วิภาดา สิทธิการ', action: 'APPROVE_BOOKING', details: 'อนุมัติการจอง BK-20261029-003', ip: '127.0.0.1' }
+      ],
+      notifications: [
+        { id: 1, title: 'มีการจองห้องประชุมใหม่รออนุมัติ', msg: 'สมชาย พัฒนาไทย จองห้อง Agile Innovation Lab', read: false },
+        { id: 2, title: 'การจองของคุณได้รับการอนุมัติแล้ว', msg: 'ห้อง Executive Suite Alpha วันที่ 29/10/2026', read: false }
+      ]
+    };
+
+    // Tab Switching
+    function switchTab(tabId) {
+      state.currentTab = tabId;
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.className = 'tab-btn px-3 py-2 rounded-lg text-xs font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--background)] transition';
+      });
+      const activeBtn = document.getElementById(`tab-${tabId}`);
+      if (activeBtn) activeBtn.className = 'tab-btn px-3 py-2 rounded-lg text-xs font-bold bg-blue-600 text-white shadow-sm transition';
+
+      const views = ['dashboard', 'rooms', 'calendar', 'my-bookings', 'all-bookings', 'reports', 'users', 'logs'];
+      views.forEach(v => {
+        const el = document.getElementById(`view-${v}`);
+        if (el) el.classList.toggle('hidden', v !== tabId);
+      });
+
+      if (tabId === 'dashboard') renderDashboard();
+      if (tabId === 'rooms') renderRooms();
+      if (tabId === 'calendar') renderCalendar();
+      if (tabId === 'my-bookings') renderMyBookings();
+      if (tabId === 'all-bookings') renderAllBookings();
+      if (tabId === 'reports') renderReports();
+      if (tabId === 'users') renderUsers();
+      if (tabId === 'logs') renderLogs();
+    }
+
+    // Role Switching
+    function switchRole(newRole) {
+      state.role = newRole;
+      ['admin', 'manager', 'user'].forEach(r => {
+        const btn = document.getElementById(`role-btn-${r}`);
+        if (btn) {
+          btn.className = r === newRole ? 'px-2.5 py-1 rounded bg-blue-600 text-white font-bold transition' : 'px-2.5 py-1 rounded text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition';
+        }
+      });
+      showToast(`สลับสิทธิ์การทำงานเป็น: ${newRole.toUpperCase()}`);
+      switchTab(state.currentTab);
+    }
+
+    // Toast
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.innerHTML = `<span class="w-2 h-2 rounded-full bg-blue-500"></span> ${msg}`;
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 3500);
+    }
+
+    // 1. Render Dashboard
+    function renderDashboard() {
+      const availCount = state.rooms.filter(r => r.status === 'available').length;
+      document.getElementById('header-avail-count').textContent = `ห้องว่างพร้อมใช้ ${availCount} / ${state.rooms.length} ห้อง`;
+      document.getElementById('dash-avail').textContent = `${availCount} ห้อง`;
+      document.getElementById('dash-occupied').textContent = `${state.rooms.filter(r => r.status === 'occupied').length} ห้อง`;
+      document.getElementById('dash-today').textContent = `${state.bookings.length} รายการ`;
+      document.getElementById('dash-pending').textContent = `${state.bookings.filter(b => b.status === 'pending').length} รายการรออนุมัติ`;
+
+      // Utilization bars
+      const utilList = document.getElementById('utilization-list');
+      utilList.innerHTML = state.rooms.map(r => {
+        const bCount = state.bookings.filter(b => b.roomId === r.id).length;
+        const pct = Math.min(bCount * 28 + 15, 100);
+        return `
+          <div>
+            <div class="flex justify-between text-xs mb-1">
+              <span class="font-medium text-[var(--foreground)]">${r.name}</span>
+              <span class="font-bold">${pct}%</span>
+            </div>
+            <div class="w-full bg-[var(--background)] border border-[var(--border)] rounded-full h-2">
+              <div class="h-2 rounded-full ${pct > 70 ? 'bg-rose-500' : 'bg-blue-600'}" style="width: ${pct}%"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Today meetings
+      const tbody = document.getElementById('today-meetings-tbody');
+      tbody.innerHTML = state.bookings.map(b => {
+        const r = state.rooms.find(rm => rm.id === b.roomId);
+        return `
+          <tr class="hover:bg-[var(--background)] transition">
+            <td class="py-2.5 px-3 font-bold text-[var(--foreground)]">${r ? r.name : '-'}</td>
+            <td class="py-2.5 px-3">${b.title}</td>
+            <td class="py-2.5 px-3 text-[var(--muted-foreground)]">${b.organizer}</td>
+            <td class="py-2.5 px-3 font-mono">${b.start} - ${b.end} น.</td>
+            <td class="py-2.5 px-3 text-right">
+              <span class="px-2 py-0.5 rounded text-xs font-semibold ${b.status === 'approved' ? 'bg-blue-100 text-blue-700' : b.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'}">${b.status === 'approved' ? 'อนุมัติแล้ว' : b.status === 'pending' ? 'รออนุมัติ' : 'เสร็จสิ้น'}</span>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // 2. Render Rooms
+    function renderRooms() {
+      filterRooms();
+    }
+
+    function filterRooms() {
+      const q = document.getElementById('room-filter-search')?.value.toLowerCase().trim() || '';
+      const st = document.getElementById('room-filter-status')?.value || '';
+      const cap = parseInt(document.getElementById('room-filter-capacity')?.value || '0', 10);
+
+      const filtered = state.rooms.filter(r => {
+        if (q && !r.name.toLowerCase().includes(q) && !r.building.toLowerCase().includes(q)) return false;
+        if (st && r.status !== st) return false;
+        if (cap && r.capacity < cap) return false;
+        return true;
+      });
+
+      const grid = document.getElementById('rooms-grid');
+      grid.innerHTML = filtered.map(r => {
+        const isMaint = r.status === 'maintenance';
+        return `
+          <div class="bg-[var(--card)] rounded-xl border border-[var(--border)] overflow-hidden shadow-sm flex flex-col justify-between">
+            <div class="relative h-44 bg-slate-800">
+              <img src="${r.image}" class="w-full h-full object-cover">
+              <div class="absolute top-2.5 left-2.5 px-2 py-0.5 bg-black/70 text-white rounded font-mono text-xs">${r.code}</div>
+              <div class="absolute top-2.5 right-2.5 px-2 py-0.5 rounded text-xs font-bold ${r.status === 'available' ? 'badge-available' : r.status === 'maintenance' ? 'badge-maintenance' : 'badge-occupied'}">
+                ${r.status === 'available' ? '🟢 ว่าง (Available)' : r.status === 'maintenance' ? '⚫ ปิดปรับปรุง' : '🔴 มีประชุม'}
+              </div>
+            </div>
+            <div class="p-4 space-y-2.5 flex-1 flex flex-col justify-between">
+              <div>
+                <h4 class="font-bold text-sm text-[var(--foreground)]">${r.name}</h4>
+                <p class="text-xs text-[var(--muted-foreground)]">${r.building} &bull; ${r.floor} &bull; รองรับ ${r.capacity} ที่นั่ง</p>
+                <div class="flex flex-wrap gap-1 mt-2">
+                  ${r.equipment.map(e => `<span class="px-2 py-0.5 bg-[var(--background)] border border-[var(--border)] rounded text-xs text-[var(--muted-foreground)]">${e}</span>`).join('')}
+                </div>
+              </div>
+              <button onclick="openBookingModal(${r.id})" ${isMaint ? 'disabled' : ''} class="w-full py-2 rounded-lg text-xs font-bold transition ${isMaint ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white shadow'}">
+                ${isMaint ? 'ห้องปิดปรับปรุง' : 'จองห้องนี้'}
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // 3. Render Calendar
+    function renderCalendar() {
+      const grid = document.getElementById('calendar-days-grid');
+      grid.innerHTML = '';
+      for (let day = 1; day <= 31; day++) {
+        const dayStr = `2026-10-${String(day).padStart(2, '0')}`;
+        const dayBookings = state.bookings.filter(b => b.date === dayStr);
+        const isToday = day === 28;
+
+        const cell = document.createElement('div');
+        cell.className = `min-h-[70px] p-1.5 rounded-lg border border-[var(--border)] bg-[var(--card)] text-left flex flex-col justify-between cursor-pointer hover:bg-blue-50/20 transition ${isToday ? 'ring-2 ring-blue-500 font-bold' : ''}`;
+        cell.onclick = () => openBookingModal(null, dayStr);
+
+        let eventsHtml = dayBookings.map(b => `
+          <div class="text-[11px] p-1 rounded font-semibold truncate ${b.status === 'approved' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}">
+            ${b.start} ${b.title.substring(0, 12)}...
+          </div>
+        `).join('');
+
+        cell.innerHTML = `
+          <span class="text-xs text-[var(--muted-foreground)]">${day} ${isToday ? '<span class="text-blue-600">(วันนี้)</span>' : ''}</span>
+          <div class="space-y-1 mt-1">${eventsHtml}</div>
+        `;
+        grid.appendChild(cell);
+      }
+    }
+
+    // 4. Render My Bookings
+    function renderMyBookings() {
+      const tbody = document.getElementById('my-bookings-tbody');
+      tbody.innerHTML = state.bookings.map(b => {
+        const r = state.rooms.find(rm => rm.id === b.roomId);
+        return `
+          <tr class="hover:bg-[var(--background)] transition">
+            <td class="py-3 px-3 font-mono font-bold text-slate-500">${b.code}</td>
+            <td class="py-3 px-3 font-bold text-[var(--foreground)]">${r ? r.name : '-'}</td>
+            <td class="py-3 px-3">${b.title}</td>
+            <td class="py-3 px-3">${b.date} (${b.start} - ${b.end} น.)</td>
+            <td class="py-3 px-3 text-center">
+              <span class="px-2 py-0.5 rounded text-xs font-semibold ${b.status === 'approved' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}">${b.status}</span>
+            </td>
+            <td class="py-3 px-3 text-right">
+              <button onclick="cancelBooking(${b.id})" class="px-2.5 py-1 text-rose-600 border border-rose-200 rounded hover:bg-rose-50 font-bold">ยกเลิก</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // 5. Render All Bookings (Approval)
+    function renderAllBookings() {
+      const tbody = document.getElementById('all-bookings-tbody');
+      tbody.innerHTML = state.bookings.map(b => {
+        const r = state.rooms.find(rm => rm.id === b.roomId);
+        return `
+          <tr class="hover:bg-[var(--background)] transition">
+            <td class="py-3 px-3 font-mono font-bold text-slate-500">${b.code}</td>
+            <td class="py-3 px-3 font-bold text-[var(--foreground)]">${r ? r.name : '-'}</td>
+            <td class="py-3 px-3">${b.title}</td>
+            <td class="py-3 px-3 text-[var(--muted-foreground)]">${b.organizer}</td>
+            <td class="py-3 px-3">${b.date} (${b.start} - ${b.end} น.)</td>
+            <td class="py-3 px-3 text-center">
+              <span class="px-2 py-0.5 rounded text-xs font-semibold ${b.status === 'approved' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}">${b.status}</span>
+            </td>
+            <td class="py-3 px-3 text-right space-x-1">
+              ${b.status === 'pending' ? `
+                <button onclick="approveBooking(${b.id})" class="px-2.5 py-1 bg-emerald-600 text-white rounded font-bold hover:bg-emerald-700">อนุมัติ</button>
+                <button onclick="rejectBooking(${b.id})" class="px-2.5 py-1 bg-rose-600 text-white rounded font-bold hover:bg-rose-700">ปฏิเสธ</button>
+              ` : '<span class="text-[var(--muted-foreground)]">เรียบร้อย</span>'}
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // 6. Render Reports
+    function renderReports() {
+      const tbody = document.getElementById('reports-tbody');
+      tbody.innerHTML = state.rooms.map(r => {
+        const rBookings = state.bookings.filter(b => b.roomId === r.id);
+        const hours = rBookings.length * 2.5;
+        const rate = Math.min(rBookings.length * 25 + 10, 100);
+        return `
+          <tr class="hover:bg-[var(--background)] transition">
+            <td class="py-3 px-4 font-mono font-bold">${r.code}</td>
+            <td class="py-3 px-4 font-bold text-[var(--foreground)]">${r.name}</td>
+            <td class="py-3 px-4 text-center">${r.capacity} คน</td>
+            <td class="py-3 px-4 text-center font-bold text-blue-600">${rBookings.length} ครั้ง</td>
+            <td class="py-3 px-4 text-center">${hours} ชม.</td>
+            <td class="py-3 px-4 text-right font-bold text-emerald-600">${rate}%</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // 7. Render Users
+    function renderUsers() {
+      const tbody = document.getElementById('users-tbody');
+      tbody.innerHTML = state.users.map(u => `
+        <tr class="hover:bg-[var(--background)] transition">
+          <td class="py-3 px-4 font-bold">${u.name}</td>
+          <td class="py-3 px-4 font-mono">${u.email}</td>
+          <td class="py-3 px-4 text-center"><span class="px-2 py-0.5 rounded font-bold bg-blue-100 text-blue-700">${u.role.toUpperCase()}</span></td>
+          <td class="py-3 px-4">${u.dept}</td>
+          <td class="py-3 px-4 text-center"><span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 font-bold">ใช้งานปกติ</span></td>
+          <td class="py-3 px-4 text-right">
+            <button onclick="showToast('รีเซ็ตรหัสผ่านสำเร็จ')" class="px-2 py-1 border rounded text-xs hover:bg-[var(--background)]">รีเซ็ตรหัส</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // 8. Render Logs
+    function renderLogs() {
+      const tbody = document.getElementById('logs-tbody');
+      tbody.innerHTML = state.logs.map(l => `
+        <tr class="hover:bg-[var(--background)] transition">
+          <td class="py-3 px-4 text-slate-500">${l.time}</td>
+          <td class="py-3 px-4 font-bold text-[var(--foreground)]">${l.user}</td>
+          <td class="py-3 px-4"><span class="px-2 py-0.5 rounded bg-slate-100 text-slate-800 font-bold">${l.action}</span></td>
+          <td class="py-3 px-4">${l.details}</td>
+          <td class="py-3 px-4 text-right text-slate-400">${l.ip}</td>
+        </tr>
+      `).join('');
+    }
+
+    // Smart Conflict-Free Booking Modal Logic
+    function openBookingModal(preselectRoomId = null, preselectDate = null) {
+      const sel = document.getElementById('book-room-id');
+      sel.innerHTML = state.rooms.map(r => `
+        <option value="${r.id}" ${r.id === preselectRoomId ? 'selected' : ''} ${r.status === 'maintenance' ? 'disabled' : ''}>
+          ${r.name} (${r.building} - ${r.capacity} คน) ${r.status === 'maintenance' ? '[ปิดปรับปรุง]' : ''}
+        </option>
+      `).join('');
+
+      document.getElementById('book-date').value = preselectDate || '2026-10-28';
+      document.getElementById('conflict-banner').classList.add('hidden');
+      document.getElementById('booking-modal').classList.remove('hidden');
+      runConflictCheck();
+    }
+
+    function closeBookingModal() {
+      document.getElementById('booking-modal').classList.add('hidden');
+    }
+
+    function runConflictCheck() {
+      const roomId = parseInt(document.getElementById('book-room-id').value, 10);
+      const date = document.getElementById('book-date').value;
+      const start = document.getElementById('book-start').value;
+      const end = document.getElementById('book-end').value;
+      const attendees = parseInt(document.getElementById('book-attendees').value || '1', 10);
+      const banner = document.getElementById('conflict-banner');
+      const submitBtn = document.getElementById('book-submit-btn');
+
+      const room = state.rooms.find(r => r.id === roomId);
+      if (!room) return;
+
+      // Check Maintenance
+      if (room.status === 'maintenance') {
+        banner.className = 'p-3 rounded-lg border border-rose-300 bg-rose-50 text-rose-800 text-xs block';
+        banner.innerHTML = `⚠️ ห้อง '${room.name}' ปิดปรับปรุงระบบ ไม่สามารถทำการจองได้`;
+        submitBtn.disabled = true;
+        submitBtn.className = 'px-5 py-2 rounded bg-slate-300 text-slate-500 cursor-not-allowed font-bold';
+        return;
+      }
+
+      // Check Capacity
+      if (attendees > room.capacity) {
+        banner.className = 'p-3 rounded-lg border border-rose-300 bg-rose-50 text-rose-800 text-xs block';
+        banner.innerHTML = `⚠️ จำนวนคน (${attendees} คน) เกินความจุของห้อง (${room.capacity} ที่นั่ง)`;
+        submitBtn.disabled = true;
+        submitBtn.className = 'px-5 py-2 rounded bg-slate-300 text-slate-500 cursor-not-allowed font-bold';
+        return;
+      }
+
+      // Check Overlap
+      const hasOverlap = state.bookings.some(b => {
+        if (b.roomId !== roomId || b.date !== date || b.status === 'cancelled') return false;
+        return (start < b.end && end > b.start);
+      });
+
+      if (hasOverlap) {
+        banner.className = 'p-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-xs block space-y-1.5';
+        banner.innerHTML = `
+          <div class="font-bold">⚠️ มีการจองห้องนี้ในช่วงเวลาดังกล่าวแล้ว!</div>
+          <div class="text-[11px] text-amber-800">แนะนำ: เลือกห้อง <b>Agile Innovation Lab</b> หรือช่วงเวลา <b>13:00 - 14:00 น.</b></div>
+        `;
+        submitBtn.disabled = true;
+        submitBtn.className = 'px-5 py-2 rounded bg-slate-300 text-slate-500 cursor-not-allowed font-bold';
+      } else {
+        banner.className = 'p-2.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-800 text-xs block font-bold';
+        banner.innerHTML = '✅ ห้องประชุมว่าง สามารถทำการจองได้';
+        submitBtn.disabled = false;
+        submitBtn.className = 'px-5 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white font-bold transition';
+      }
+    }
+
+    function handleBookingSubmit(e) {
+      e.preventDefault();
+      const roomId = parseInt(document.getElementById('book-room-id').value, 10);
+      const title = document.getElementById('book-title').value;
+      const date = document.getElementById('book-date').value;
+      const start = document.getElementById('book-start').value;
+      const end = document.getElementById('book-end').value;
+      const attendees = parseInt(document.getElementById('book-attendees').value, 10);
+      const organizer = document.getElementById('book-organizer').value;
+
+      const newId = state.bookings.length + 1;
+      const newBooking = {
+        id: newId,
+        code: `BK-20261028-00${newId}`,
+        roomId,
+        title,
+        date,
+        start,
+        end,
+        attendees,
+        organizer,
+        status: state.role === 'admin' ? 'approved' : 'pending'
+      };
+
+      state.bookings.unshift(newBooking);
+      state.logs.unshift({
+        time: 'เพิ่งทำรายการ',
+        user: organizer,
+        action: 'CREATE_BOOKING',
+        details: `จองห้อง ${title} (${newBooking.code})`,
+        ip: '127.0.0.1'
+      });
+
+      closeBookingModal();
+      showToast('จองห้องประชุมสำเร็จเรียบร้อยแล้ว!');
+      switchTab(state.currentTab);
+    }
+
+    function approveBooking(id) {
+      const b = state.bookings.find(item => item.id === id);
+      if (b) {
+        b.status = 'approved';
+        showToast(`อนุมัติการจอง "${b.title}" เรียบร้อยแล้ว`);
+        renderAllBookings();
+      }
+    }
+
+    function rejectBooking(id) {
+      const b = state.bookings.find(item => item.id === id);
+      if (b) {
+        b.status = 'rejected';
+        showToast(`ปฏิเสธการจอง "${b.title}" แล้ว`);
+        renderAllBookings();
+      }
+    }
+
+    function cancelBooking(id) {
+      if (confirm('คุณต้องการยกเลิกการจองนี้ใช่หรือไม่?')) {
+        const b = state.bookings.find(item => item.id === id);
+        if (b) {
+          b.status = 'cancelled';
+          showToast('ยกเลิกการจองแล้ว');
+          renderMyBookings();
+        }
+      }
+    }
+
+    function exportCSV() {
+      let csv = 'รหัสจอง,ห้องประชุม,หัวข้อ,ผู้จัด,วันที่,เวลา,สถานะ\n';
+      state.bookings.forEach(b => {
+        const r = state.rooms.find(rm => rm.id === b.roomId);
+        csv += `${b.code},"${r ? r.name : ''}","${b.title}","${b.organizer}",${b.date},${b.start}-${b.end},${b.status}\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `meeting_report_${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+      showToast('ดาวน์โหลดไฟล์ CSV เรียบร้อยแล้ว');
+    }
+
+    function toggleNotifDropdown() {
+      const el = document.getElementById('notif-dropdown');
+      el.classList.toggle('hidden');
+      const container = document.getElementById('notif-items');
+      container.innerHTML = state.notifications.map(n => `
+        <div class="p-2 rounded bg-[var(--background)] border border-[var(--border)]">
+          <div class="font-bold text-[var(--foreground)]">${n.title}</div>
+          <div class="text-[var(--muted-foreground)]">${n.msg}</div>
+        </div>
+      `).join('');
+    }
+
+    function clearNotifs() {
+      state.notifications = [];
+      document.getElementById('notif-badge').classList.add('hidden');
+      document.getElementById('notif-items').innerHTML = '<div class="text-[var(--muted-foreground)] text-center py-2">ไม่มีการแจ้งเตือน</div>';
+      showToast('อ่านการแจ้งเตือนทั้งหมดแล้ว');
+    }
+
+    // Init App
+    document.addEventListener('DOMContentLoaded', () => {
+      switchTab('dashboard');
+    });
+  </script>
+</body>
+</html>
